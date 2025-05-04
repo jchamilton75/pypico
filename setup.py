@@ -37,12 +37,12 @@ if build_cython:
     from Cython.Build import cythonize
     ext_modules = cythonize([
         Extension('pypico.pico', ['pypico/pico.pyx'],
-                  include_dirs=[sysconfig.get_path('include')])
+                  include_dirs=['/usr/include/python3.11/cpython', sysconfig.get_path('include')])
     ])
 else:
     ext_modules = [
         Extension('pypico.pico', ['pypico/pico.c'],
-                  include_dirs=[sysconfig.get_path('include')])
+                  include_dirs=['/usr/include/python3.11/cpython', sysconfig.get_path('include')])
     ]
 
 # --- Setup ---
