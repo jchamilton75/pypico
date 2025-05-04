@@ -1,3 +1,4 @@
+import os
 import sys
 import sysconfig
 from setuptools import setup
