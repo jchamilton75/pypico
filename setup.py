@@ -21,7 +21,8 @@ else:
     checklib('scipy','SciPy','0.10.1')
 
 
-from numpy.distutils.core import setup
+# from numpy.distutils.core import setup
+from setuptools import setup
 from numpy.distutils.misc_util import Configuration
 
 
