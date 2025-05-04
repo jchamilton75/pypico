@@ -1,42 +1,52 @@
 import sys
-from distutils.sysconfig import get_python_inc
-from distutils.version import StrictVersion
+import sysconfig
+from setuptools import setup
+from setuptools.command.build_ext import build_ext
+from setuptools.extension import Extension
+from packaging.version import Version, InvalidVersion
 
-#Do some version checking
-skip_version_check=('--skip_version_check' in sys.argv)
+# --- Version checks ---
+skip_version_check = '--skip_version_check' in sys.argv
 if skip_version_check:
     sys.argv.remove('--skip_version_check')
 else:
     skipmsg = "Run with --skip_version_check to suppress this error (PICO may not work correctly)."
-    if (sys.version_info < (3,)):
-        raise Exception("PICO requires Python version 3.X. "+skipmsg)
-    def checklib(lib,name,version):
-      try:
-          mod = __import__(lib)
-          if StrictVersion(mod.__version__) < StrictVersion(version):
-              raise Exception("PICO requires %s (>=%s). You have %s. "%(name,version,mod.__version__)+skipmsg)
-      except ImportError:
-          raise Exception("PICO requires %s. "%name+skipmsg)
-    checklib('numpy','NumPy','1.6.1')
-    checklib('scipy','SciPy','0.10.1')
+    if sys.version_info < (3,):
+        raise Exception("PICO requires Python version 3.X. " + skipmsg)
 
+    def checklib(lib, name, version):
+        try:
+            mod = __import__(lib)
+            try:
+                mod_version = Version(mod.__version__)
+                min_version = Version(version)
+                if mod_version < min_version:
+                    raise Exception(f"PICO requires {name} (>= {version}). You have {mod.__version__}. {skipmsg}")
+            except InvalidVersion:
+                print(f"Warning: Could not parse version of {name}, skipping version check.")
+        except ImportError:
+            raise Exception(f"PICO requires {name}. {skipmsg}")
 
-# from numpy.distutils.core import setup
-from setuptools import setup
-from numpy.distutils.misc_util import Configuration
+    checklib('numpy', 'NumPy', '1.6.1')
+    checklib('scipy', 'SciPy', '0.10.1')
 
-
-# By default don't try to use Cython to compile the pyx file,
-# just use the file distributed with pypico. 
-build_cython=('--build_cython' in sys.argv)
+# --- Optional cython compilation ---
+build_cython = '--build_cython' in sys.argv
 if build_cython:
     sys.argv.remove('--build_cython')
-    from Cython.Compiler.Main import compile
-    compile('pypico/pico.pyx')
+    from Cython.Build import cythonize
+    ext_modules = cythonize([
+        Extension('pypico.pico', ['pypico/pico.pyx'],
+                  include_dirs=[sysconfig.get_path('include')])
+    ])
+else:
+    ext_modules = [
+        Extension('pypico.pico', ['pypico/pico.c'],
+                  include_dirs=[sysconfig.get_path('include')])
+    ]
 
-
-
-config = Configuration('pypico',
+# --- Setup ---
+setup(
     name='pypico',
     version='4.0.0',
     author='Marius Millea',
@@ -45,22 +55,89 @@ config = Configuration('pypico',
     url='https://github.com/marius311/pypico',
     license='LICENSE.txt',
     description='Quickly compute the CMB powerspectra and matter transfer functions.',
-    long_description=open('README.md').read()
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
+    ext_modules=ext_modules,
+    include_package_data=True,
+    package_data={
+        'pypico': ['fpico_interface.f90', 'pico.h'],
+        'plugins': ['camb/*']
+    },
+    install_requires=[
+        'numpy>=1.6.1',
+        'scipy>=0.10.1',
+        'cython; extra == "cython"'
+    ],
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'Operating System :: OS Independent',
+    ]
 )
 
 
-# Compile libpico.a
-config.add_installed_library('pico',
-                             ['pypico/pico.c'],
-                             'pypico',
-                             {'include_dirs':[get_python_inc()]})
+# import sys
+# from distutils.sysconfig import get_python_inc
+# from distutils.version import StrictVersion
+
+# #Do some version checking
+# skip_version_check=('--skip_version_check' in sys.argv)
+# if skip_version_check:
+#     sys.argv.remove('--skip_version_check')
+# else:
+#     skipmsg = "Run with --skip_version_check to suppress this error (PICO may not work correctly)."
+#     if (sys.version_info < (3,)):
+#         raise Exception("PICO requires Python version 3.X. "+skipmsg)
+#     def checklib(lib,name,version):
+#       try:
+#           mod = __import__(lib)
+#           if StrictVersion(mod.__version__) < StrictVersion(version):
+#               raise Exception("PICO requires %s (>=%s). You have %s. "%(name,version,mod.__version__)+skipmsg)
+#       except ImportError:
+#           raise Exception("PICO requires %s. "%name+skipmsg)
+#     checklib('numpy','NumPy','1.6.1')
+#     checklib('scipy','SciPy','0.10.1')
 
 
-# Other files
-config.add_data_files(('','pypico/fpico_interface.f90'))
-config.add_data_files(('','pypico/pico.h'))
-config.add_data_files('plugins/camb/*')
-config.add_data_files('README.md')
+# # from numpy.distutils.core import setup
+# from setuptools import setup
+# from numpy.distutils.misc_util import Configuration
 
 
-setup(**config.todict())
+# # By default don't try to use Cython to compile the pyx file,
+# # just use the file distributed with pypico. 
+# build_cython=('--build_cython' in sys.argv)
+# if build_cython:
+#     sys.argv.remove('--build_cython')
+#     from Cython.Compiler.Main import compile
+#     compile('pypico/pico.pyx')
+
+
+
+# config = Configuration('pypico',
+#     name='pypico',
+#     version='4.0.0',
+#     author='Marius Millea',
+#     author_email='mariusmillea@gmail.com',
+#     packages=['pypico'],
+#     url='https://github.com/marius311/pypico',
+#     license='LICENSE.txt',
+#     description='Quickly compute the CMB powerspectra and matter transfer functions.',
+#     long_description=open('README.md').read()
+# )
+
+
+# # Compile libpico.a
+# config.add_installed_library('pico',
+#                              ['pypico/pico.c'],
+#                              'pypico',
+#                              {'include_dirs':[get_python_inc()]})
+
+
+# # Other files
+# config.add_data_files(('','pypico/fpico_interface.f90'))
+# config.add_data_files(('','pypico/pico.h'))
+# config.add_data_files('plugins/camb/*')
+# config.add_data_files('README.md')
+
+
+# setup(**config.todict())
